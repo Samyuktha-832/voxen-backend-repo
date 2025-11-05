@@ -1,0 +1,144 @@
+# ==================================================
+# Python venv-based project .gitignore
+# Project: BACKEND-VOXEN-MASTER
+# ==================================================
+
+# --- Environment files (CRITICAL: contains API keys) ---
+.env
+.env.*
+env_file
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# --- Virtual Environments ---
+.env/
+env/
+venv/
+venv311/
+ENV/
+env.bak/
+venv.bak/
+pyvenv.cfg
+
+# --- Python cache and compiled files ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- Distribution / Packaging ---
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- PyInstaller ---
+*.manifest
+*.spec
+
+# --- Unit Test / Coverage Reports ---
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# --- Audio / Media Files (can be large) ---
+*.wav
+*.mp3
+*.mp4
+*.m4a
+*.flac
+*.aac
+*.ogg
+temp.wav
+output.wav
+recorded_audio.*
+
+# --- Whisper / Model Caches ---
+*.pt
+models/
+whisper_models/
+*.bin
+*.safetensors
+*.msgpack
+
+# --- Notebook / IDE / Editor ---
+.ipynb_checkpoints
+.vscode/
+.idea/
+.history/
+.spyderproject
+.spyproject
+.ropeproject
+*.swp
+*.swo
+*~
+
+# --- Type Checkers / Linters ---
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+cython_debug/
+
+# --- Environment / Dependency Managers ---
+.python-version
+Pipfile.lock
+poetry.lock
+
+# --- Documentation ---
+/site
+
+# --- OS Specific Files ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# --- Logs and Temporary Files ---
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+
+# --- Secrets / Config Files ---
+*secret*
+*key*
+*token*
+config.py
+config.json
+secrets.json
+*.env
+
+# --- Backup and Misc ---
+*.bak

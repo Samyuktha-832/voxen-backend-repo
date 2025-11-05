@@ -1,0 +1,15 @@
+{
+  "providers": {
+    "openrouter": {
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key": "",
+      "default_model": "meta-llama/llama-4-maverick:free"
+    },
+    "ollama": {
+      "base_url": "http://localhost:11434/api",
+      "default_model": "tinyllama"
+    }
+  },
+  "default_provider": "ollama", 
+  "fallback_provider": "openrouter"
+}
