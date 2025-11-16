@@ -46,60 +46,67 @@ class LLMClient:
         """
         target_model = model or self.model
 
-        # Handle Ollama differently
-        if self.provider_name == "ollama":
+        # Handle Ollama differently - check if provider name starts with "ollama"
+        if self.provider_name.startswith("ollama") or self.provider_name == "ollama":
             return self._chat_ollama(messages, target_model)
         else:
             return self._chat_openrouter(messages, target_model)
 
     def _chat_ollama(self, messages, model):
         """
-        Handle Ollama API with better prompt control
+        Handle Ollama API with memory-efficient settings
         """
-        # Convert messages to a cleaner prompt format
         prompt = self._messages_to_prompt_controlled(messages)
-        
-        # Ollama uses /api/generate endpoint
         endpoint = f"{self.base_url}/generate"
+        
+        # Memory-optimized settings based on model size
+        num_predict = 150
+        num_ctx = 2048
+        
+        # Adjust based on your 3 models
+        if "0.5b" in model:
+            num_ctx = 512   # Qwen 2.5 (0.5B)
+            num_predict = 200
+        elif "1.1b" in model:
+            num_ctx = 1024  # TinyLlama (1.1B)
+            num_predict = 180
+        elif "0.1b" in model:
+            num_ctx = 1024  # gemma3:1b
+            num_predict = 150
         
         data = {
             "model": model,
             "prompt": prompt,
-            "stream": False,  # Disable streaming
+            "stream": False,
             "options": {
                 "temperature": 0.7,
                 "top_p": 0.9,
                 "top_k": 40,
-                "num_predict": 150,  # Limit response length
-                "stop": ["\nUser:", "\nAssistant:", "User:", "<|end|>", "<|im_end|>"]  # Stop sequences
+                "num_predict": num_predict,
+                "num_ctx": num_ctx,
+                "num_batch": 128,
+                "num_gpu": 0,  # Force CPU
+                "stop": ["\nUser:", "\nAssistant:", "User:", "<|end|>", "<|im_end|>"]
             }
         }
 
         print(f"DEBUG Ollama Request → {endpoint}")
-        print(f"DEBUG Payload: {json.dumps(data, indent=2)}")
+        print(f"DEBUG Model: {model} | Context: {num_ctx} | Predict: {num_predict}")
 
         try:
-            response = requests.post(
-                endpoint, 
-                headers=self.headers, 
-                json=data, 
-                timeout=60
-            )
+            response = requests.post(endpoint, headers=self.headers, json=data, timeout=60)
 
             if response.status_code != 200:
                 print(f"❌ Ollama API Error {response.status_code}:", response.text)
                 response.raise_for_status()
 
-            # Parse single JSON response
             result = response.json()
             reply = result.get("response", "").strip()
             
             if not reply:
                 raise ValueError("Ollama returned empty response")
             
-            # Clean up the response - stop at first User: or Assistant:
             reply = self._clean_ollama_response(reply)
-            
             print(f"✅ Ollama response (cleaned): {reply[:150]}...")
             return reply
             

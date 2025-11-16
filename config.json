@@ -1,15 +1,18 @@
 {
   "providers": {
-    "openrouter": {
-      "base_url": "https://openrouter.ai/api/v1",
-      "api_key": "",
-      "default_model": "meta-llama/llama-4-maverick:free"
-    },
     "ollama": {
       "base_url": "http://localhost:11434/api",
-      "default_model": "tinyllama"
+      "default_model": "qwen2.5:0.5b",
+      "num_gpu": 0,
+      "num_ctx": 1024
+    },
+    "openrouter": {
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key": "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",
+      "default_model": "meta-llama/llama-4-maverick:free"
     }
   },
-  "default_provider": "ollama", 
-  "fallback_provider": "openrouter"
+  "default_provider": "ollama",
+  "fallback_provider": null,
+  "force_cpu": true
 }

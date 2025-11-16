@@ -1,7 +1,6 @@
 import whisper
 import pyttsx3
 import speech_recognition as sr
-import os
 import json
 import atexit
 import requests
@@ -16,6 +15,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from main import listen_and_transcribe
 from llm_client import LLMClient
+import os
+os.environ['OLLAMA_NUM_GPU'] = '0'
 
 # ----------------------------
 # Setup
@@ -40,6 +41,21 @@ atexit.register(cleanup_tts)
 
 recognizer = sr.Recognizer()
 mic = sr.Microphone()
+
+# ----------------------------
+# Model-to-Provider Mapping
+# ----------------------------
+# ----------------------------
+# Model-to-Provider Mapping (ALL USE SAME OLLAMA INSTANCE)
+# ----------------------------
+# ----------------------------
+# Model-to-Provider Mapping (ALL USE SAME OLLAMA INSTANCE)
+# ----------------------------
+MODEL_TO_PROVIDER = {
+    "qwen2.5:0.5b": "ollama",
+    "tinyllama:1.1b": "ollama",
+    "gemma3:1b": "ollama",
+}
 
 # ----------------------------
 # Setup LLM Client
@@ -77,6 +93,7 @@ app.add_middleware(
 # ----------------------------
 class ChatIn(BaseModel):
     message: str
+    model: str = None  # Optional model parameter
 
 class ChatOut(BaseModel):
     reply: str
@@ -85,7 +102,14 @@ class ChatOut(BaseModel):
 # ----------------------------
 # AI Functions using LLMClient
 # ----------------------------
-def ask_ai(prompt: str) -> str:
+def ask_ai(prompt: str, model: str = None) -> str:
+    """
+    Get AI response with optional model override
+    
+    Args:
+        prompt: User's message
+        model: Optional model name to use (overrides default)
+    """
     try:
         # Configurable per-call timeout for LLM calls (seconds)
         llm_call_timeout = int(os.getenv("LLM_CALL_TIMEOUT_S", "180"))
@@ -104,44 +128,74 @@ def ask_ai(prompt: str) -> str:
                     raise TimeoutError(f"LLM call timed out after {timeout_s}s")
 
         messages = [
-    {"role": "system", "content": "You are Voxen AI, a helpful and intelligent assistant."},
-    {"role": "user", "content": prompt}
-    ]
+            {"role": "system", "content": "You are Voxen AI, a helpful and intelligent assistant."},
+            {"role": "user", "content": prompt}
+        ]
 
-        # First, try the already-initialized global llm_client (uses default_provider from config.json)
-        try:
-            print(f"🔹 Trying primary provider (singleton): {llm_client.provider_name} | model: {llm_client.model}")
-
-            # If primary is Ollama, prefer smaller local models first to avoid memory/GPU issues
-            if llm_client.provider_name == "ollama":
-                small_models = ["qwen3:0.6b", "phi3", llm_client.model]
-                for m in small_models:
-                    try:
-                        print(f"🔸 Trying Ollama model: {m}")
-                        reply = run_with_timeout(lambda: llm_client.chat(messages=messages, model=m), llm_call_timeout)
-                        print(f"🔍 Raw reply from ollama:{m}: {repr(reply)}")
-                        if reply and isinstance(reply, str) and reply.strip():
-                            return reply.strip()
-                    except TimeoutError as te:
-                        print(f"⏱ Ollama model {m} timed out: {te}")
-                    except Exception as e:
-                        print(f"⚠ Ollama model {m} failed: {e}")
-                # if none of the Ollama models worked, raise to trigger fallback
-                raise RuntimeError("All tested Ollama models failed or returned invalid responses")
-            else:
+        # If a specific model is requested, determine the correct provider
+        if model and model in MODEL_TO_PROVIDER:
+            target_provider = MODEL_TO_PROVIDER[model]
+            print(f"🎯 Model '{model}' maps to provider: {target_provider}")
+            
+            try:
+                # Create a new client for this specific provider
+                model_client = LLMClient(provider_name=target_provider, config_path="config.json")
+                print(f"🔹 Using provider: {target_provider} | model: {model}")
+                
+                reply = run_with_timeout(
+                    lambda: model_client.chat(messages=messages, model=model), 
+                    llm_call_timeout
+                )
+                print(f"🔍 Raw reply from {target_provider}:{model}: {repr(reply)}")
+                if reply and isinstance(reply, str) and reply.strip():
+                    return reply.strip()
+                    
+            except TimeoutError as te:
+                print(f"⏱ Model {model} timed out: {te}")
+                raise
+            except Exception as e:
+                print(f"❌ Model {model} failed: {e}")
+                # Don't raise - fall through to default behavior
+        
+        # Default behavior: use the primary provider
+        print(f"🔹 Using primary provider: {llm_client.provider_name} | model: {llm_client.model}")
+        
+        # If primary is Ollama and no specific model selected, try small models
+        if llm_client.provider_name.startswith("ollama") and not model:
+            small_models = ["qwen2.5:0.5b", "gemma3:1b", llm_client.model]
+            for m in small_models:
                 try:
-                    reply = run_with_timeout(lambda: llm_client.chat(messages=messages), llm_call_timeout)
-                    print(f"🔍 Raw reply from {llm_client.provider_name}: {repr(reply)}")
+                    print(f"🔸 Trying Ollama model: {m}")
+                    reply = run_with_timeout(
+                        lambda: llm_client.chat(messages=messages, model=m), 
+                        llm_call_timeout
+                    )
+                    print(f"🔍 Raw reply from {llm_client.provider_name}:{m}: {repr(reply)}")
                     if reply and isinstance(reply, str) and reply.strip():
                         return reply.strip()
                 except TimeoutError as te:
-                    print(f"⏱ Primary provider call timed out: {te}")
+                    print(f"⏱ Ollama model {m} timed out: {te}")
                 except Exception as e:
-                    print(f"⚠ Primary provider call failed: {e}")
-        except Exception as e:
-            print(f"❌ Primary provider (singleton) failed: {e}")
+                    print(f"⚠ Ollama model {m} failed: {e}")
+            # If all models failed, fall through to fallback
+            print("⚠ All Ollama models failed, trying fallback...")
+        else:
+            # Try the primary provider once
+            try:
+                target_model = model if model else llm_client.model
+                reply = run_with_timeout(
+                    lambda: llm_client.chat(messages=messages, model=target_model), 
+                    llm_call_timeout
+                )
+                print(f"🔍 Raw reply from {llm_client.provider_name}: {repr(reply)}")
+                if reply and isinstance(reply, str) and reply.strip():
+                    return reply.strip()
+            except TimeoutError as te:
+                print(f"⏱ Primary provider call timed out: {te}")
+            except Exception as e:
+                print(f"⚠ Primary provider call failed: {e}")
 
-        # If primary failed, read config and attempt fallback provider if configured
+        # Fallback logic
         try:
             with open("config.json", "r") as f:
                 config = json.load(f)
@@ -154,7 +208,10 @@ def ask_ai(prompt: str) -> str:
                 print(f"🔄 Falling back to provider: {fallback_provider}")
                 fallback_client = LLMClient(provider_name=fallback_provider)
                 try:
-                    reply = run_with_timeout(lambda: fallback_client.chat(messages=messages), llm_call_timeout)
+                    reply = run_with_timeout(
+                        lambda: fallback_client.chat(messages=messages), 
+                        llm_call_timeout
+                    )
                     print(f"🔍 Raw reply from {fallback_provider}: {repr(reply)}")
                     if reply and isinstance(reply, str) and reply.strip():
                         return reply.strip()
@@ -177,9 +234,13 @@ def chat(req: ChatIn):
     try:
         start_time = time.time()
         print(f"📩 User: {req.message}  [chat start @ {start_time:.3f}]")
+        
+        # Get selected model from request (if provided)
+        selected_model = getattr(req, 'model', None)
+        print(f"🎯 Selected model: {selected_model or 'default'}")
 
         t_llm_start = time.time()
-        reply = ask_ai(req.message)
+        reply = ask_ai(req.message, model=selected_model)
         t_llm_end = time.time()
         print(f"🔁 ask_ai finished (len={len(reply) if reply else 0}) in {t_llm_end - t_llm_start:.2f}s")
 
@@ -219,7 +280,11 @@ def chat(req: ChatIn):
                 file_size = 0
             print(f"📦 Audio encoded: {file_size} bytes, encoding took {t_enc_end - t_enc_start:.2f}s, total chat time {t_enc_end - start_time:.2f}s")
 
-        return JSONResponse(content={"reply": reply, "audio_base64": audio_base64})
+        return JSONResponse(content={
+            "reply": reply, 
+            "audio_base64": audio_base64,
+            "model_used": selected_model or llm_client.model
+        })
 
     except Exception as e:
         print(f"⚠ Chat Endpoint Error: {e}")
@@ -228,27 +293,49 @@ def chat(req: ChatIn):
         return JSONResponse(content={"reply": fallback_reply, "audio_base64": ""})
 
 
-
-
-@app.get("/api/listen")
-def listen_endpoint():
+@app.get("/api/models")
+def get_available_models():
+    """Get list of available Ollama models"""
     try:
-        text = listen_and_transcribe()  # calls main.py microphone function
-        if not text:
-            text = ""  # Ensure we return empty string, not None
-        return JSONResponse(content={"message": text})
+        # Query Ollama directly for available models
+        response = requests.get("http://localhost:11434/api/tags", timeout=5)
+        if response.ok:
+            data = response.json()
+            models_list = []
+            
+            # Only these 3 models we support
+            supported_models = {
+                "qwen2.5:0.5b": "Qwen 2.5 (0.5B) - Ultra Fast ⚡",
+                "tinyllama:1.1b": "TinyLlama (1.1B) - Compact 🔷",
+                "gemma3:1b": "gemma3:1b - Efficient 🧠"
+            }
+            
+            # Only return models that are actually installed
+            for model_info in data.get("models", []):
+                model_name = model_info.get("name")
+                if model_name in supported_models:
+                    models_list.append({
+                        "name": model_name,
+                        "display_name": supported_models[model_name],
+                        "provider": "ollama",
+                        "size": model_info.get("size", 0)
+                    })
+            
+            # Sort by size (smallest first)
+            models_list.sort(key=lambda x: x.get("size", 0))
+            
+            print(f"✅ Returning {len(models_list)} available models")
+            return {"models": models_list}
+        else:
+            raise Exception("Ollama not responding")
+            
     except Exception as e:
-        print(f"⚠ Listen Endpoint Error: {e}")
-        return JSONResponse(content={"message": ""}, status_code=500)
-
-
-@app.get("/api/profile")
-def profile():
-    return {
-        "user": {
-            "id": "123",
-            "username": "shruti",
-            "full_name": "Shruti S Sajeev",
-            "profile_picture": ""  # You can put a URL if available
-        }
-    }
+        print(f"❌ Error getting models: {e}")
+        # Fallback to default model only
+        return {"models": [
+            {
+                "name": "qwen2.5:0.5b", 
+                "display_name": "Qwen 2.5 (0.5B) - Ultra Fast ⚡",
+                "provider": "ollama"
+            }
+        ]}
