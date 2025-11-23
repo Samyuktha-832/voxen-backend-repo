@@ -8,7 +8,7 @@
     },
     "openrouter": {
       "base_url": "https://openrouter.ai/api/v1",
-      "api_key": "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",
+      "api_key": "",
       "default_model": "meta-llama/llama-4-maverick:free"
     }
   },
