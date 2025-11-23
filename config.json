@@ -9,10 +9,14 @@
     "openrouter": {
       "base_url": "https://openrouter.ai/api/v1",
       "api_key": "",
-      "default_model": "meta-llama/llama-4-maverick:free"
+      "default_model": "meta-llama/llama-3.1-70b-instruct"
+    },
+    "openai": {
+      "api_key": "",
+      "default_model": "gpt-4o"
     }
   },
-  "default_provider": "ollama",
-  "fallback_provider": null,
+  "default_provider": "openrouter",
+  "fallback_provider": "ollama",
   "force_cpu": true
 }
