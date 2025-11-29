@@ -31,7 +31,7 @@ git clone https://github.com/shrutissajeev-boop/voxen_backend.git
 cd voxen_backend
 
 # One-line setup (Windows PowerShell)
-python -m venv .env; .env\Scripts\Activate; pip install -r requirements.txt
+py -3.11 -m venv .venv; .env\Scripts\Activate; pip install -r requirements.txt
 
 # One-line setup (macOS/Linux Bash)
 python3 -m venv .env && source .env/bin/activate && pip install -r requirements.txt
@@ -42,7 +42,7 @@ python3 -m venv .env && source .env/bin/activate && pip install -r requirements.
 ```bash
 # Activate virtual environment (if not already active)
 # Windows:
-.env\Scripts\Activate
+.\.venv\Scripts\Activate.ps1 
 # macOS/Linux:
 source .env/bin/activate
 
